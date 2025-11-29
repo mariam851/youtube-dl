@@ -29,7 +29,6 @@ class StreamableIE(InfoExtractor):
                 'view_count': int,
             }
         },
-        # older video without bitrate, width/height, etc. info
         {
             'url': 'https://streamable.com/moo',
             'md5': '2cf6923639b87fba3279ad0df3a64e73',
@@ -65,32 +64,28 @@ class StreamableIE(InfoExtractor):
     def _real_extract(self, url):
         video_id = self._match_id(url)
 
-        # Note: Using the ajax API, as the public Streamable API doesn't seem
-        # to return video info like the title properly sometimes, and doesn't
-        # include info like the video duration
+        
         video = self._download_json(
-            'https://ajax.streamable.com/videos/%s' % video_id, video_id)
+            f'https://ajax.streamable.com/videos/{video_id}', video_id)
 
-        # Format IDs:
-        # 0 The video is being uploaded
-        # 1 The video is being processed
-        # 2 The video has at least one file ready
-        # 3 The video is unavailable due to an error
+        
         status = video.get('status')
         if status != 2:
             raise ExtractorError(
                 'This video is currently unavailable. It may still be uploading or processing.',
                 expected=True)
 
-        title = video.get('reddit_title') or video['title']
+        title = video.get('reddit_title') or video.get('title')
 
+        
         formats = []
-        for key, info in video['files'].items():
-            if not info.get('url'):
+        for key, info in (video.get('files') or {}).items():
+            url = info.get('url')
+            if not url:
                 continue
             formats.append({
                 'format_id': key,
-                'url': self._proto_relative_url(info['url']),
+                'url': self._proto_relative_url(url),
                 'width': int_or_none(info.get('width')),
                 'height': int_or_none(info.get('height')),
                 'filesize': int_or_none(info.get('size')),
@@ -105,7 +100,7 @@ class StreamableIE(InfoExtractor):
             'description': video.get('description'),
             'thumbnail': self._proto_relative_url(video.get('thumbnail_url')),
             'uploader': video.get('owner', {}).get('user_name'),
-            'timestamp': float_or_none(video.get('date_added')),
+            'timestamp': float_or_none(video.get('date_added') or video.get('created_at')),
             'duration': float_or_none(video.get('duration')),
             'view_count': int_or_none(video.get('plays')),
             'formats': formats
